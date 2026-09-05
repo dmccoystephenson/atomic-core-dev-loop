@@ -25,7 +25,7 @@ Everything below was established from the source, `package.json`, `tsconfig.json
 - **`dist/` is committed** (119 tracked files). `.gitignore` has `dist` commented out with the note *"Turns out the github build pipeline does rely on this."* Every example page loads `dist/atomic-core.iife.js` from the working tree. `scripts/release.sh` is what rebuilds and commits it, at release time, in a `build: vX.Y.Z` commit. **A feature PR never commits `dist/`.**
 - **`docs/` is generated** by `npm run docs` (typedoc + `typedoc-plugin-markdown`, 133 files). Never hand-edit a file under `docs/`; regenerate.
 - **`src/libold` is a dangling gitlink.** `git ls-files -s src/libold` shows mode `160000` with no `.gitmodules` — an accidentally-committed nested repo that materializes as an empty directory. `tsconfig.json` excludes it. Leave it alone unless removing it is the whole point of a PR (it is a history-touching change; treat it as owner-gated).
-- **Issues are disabled on the fork** (`hasIssuesEnabled: false`). `gh issue list` against `dmccoystephenson/atomic-core` errors rather than returning an empty list. There is no project-side backlog; see Phase 1 for what triage does instead.
+- **Issues are enabled on the fork** (turned on 2026-09-05; `hasIssuesEnabled: true`). `gh issue list --repo dmccoystephenson/atomic-core --state open` returns a real backlog, seeded with `#2`–`#7` from a triage pass — three `bug`, two `enhancement`, one `documentation`. The tracker starts at `#2` because `#1` was the first PR, not an issue. Triage starts here; see Phase 1.
 - **The fork is currently identical to upstream** (`git log origin/master..upstream/master` and its reverse are both empty as of 2026-09-05) and has no PRs in its history. Every convention below was learned from upstream's commits.
 - **Two licenses, and they are not the same.** `LICENSE_code.txt` is the Unlicense (public domain). `LICENSE_art.txt` is a restrictive, non-transferable artwork license, last updated October 2025. The `.png` atlases under `examples/` are art, not code — never relicense, republish, or copy them into a new location without owner authorization.
 - **React is vestigial.** `package.json`'s description says "for React Three Fiber", its `peerDependencies` require `react`, `react-dom`, `@react-three/fiber` and `@react-three/drei`, and `vite.config.ts` loads `@vitejs/plugin-react` — but there is not one `.tsx` file and nothing under `src/lib` imports React. `README.md` says the opposite in its first paragraph ("No React, no JSX, no build step required"). This is real, known drift, and it is a **published-package contract**: dropping the peer deps changes what installs for every consumer. Surface it; do not resolve it unilaterally (Phase 1, harness/owner-gated list).
@@ -69,10 +69,17 @@ git log --oneline -10
 
 **Expect a restricted fetch refspec.** A gardener-managed clone is configured `+refs/heads/master:refs/remotes/origin/master` only, so `git fetch` never creates a remote-tracking ref for a feature branch. That breaks `gh pr create`'s head auto-detection and bare `--force-with-lease`; see the Edge cases entries for both.
 
-**There is no project issue tracker.** Issues are disabled on the fork, so `gh issue list` fails and there is nothing to close. Triage is therefore a **scan**, and the backlog is whatever this cycle writes down:
-- Read `gh issue list --repo philbgarner/atomic-core --state open` for context — upstream's tracker is the closest thing to a roadmap. Treat those issues as **read-only context**. Never write `Closes #N` for an upstream number: issue references in a fork PR resolve against the fork, which has no issues, so the reference is silently meaningless.
-- Carry the backlog forward in the PR body: every candidate found and not picked this cycle goes in a `## Deferred this cycle` section of the PR the cycle does open, with a one-line reason. That is the audit trail a human reads, in place of skipped-issue comments.
-- **Surface once, in the cycle report:** enabling Issues on `dmccoystephenson/atomic-core` would give this loop a real backlog. It is a repository-settings change and belongs to the owner — do not attempt it.
+**The project has an issue tracker, and it is the first place to look.** Issues were enabled on the fork on 2026-09-05, so this returns a backlog rather than erroring:
+
+```bash
+gh issue list --repo dmccoystephenson/atomic-core --state open
+```
+
+- **Prefer an open issue over a self-found candidate.** An issue is a work item someone already judged worth doing, and closing one is progress a human can see; a scan candidate is only this loop's own opinion. Scan to top up when the tracker is empty, or when every open issue is owner-gated or too large for one cycle.
+- **Read the issue's own acceptance criteria before Phase 3.** The seeded issues each carry a `## Verifying a fix` section naming the concrete local anchor for that specific change — which example page to walk, or the fact that a docs-only change gives `tsc` nothing to say. That section is the acceptance criterion; do not substitute a generic anchor for it.
+- **Check whether an issue is owner-gated before picking it.** Some carry decisions that are not this loop's to make — adding a test framework changes `package.json` and CI, and restoring a commented-out encoding may reopen a bug the author hit. Where an issue says the owner should decide, the cycle's job is to surface evidence, not to choose.
+- **A deferred candidate now goes on the tracker.** File it as an issue rather than only listing it in a PR body, so it outlives the PR that mentions it. Keep the `## Deferred this cycle` section for candidates too small to be worth their own issue.
+- `gh issue list --repo philbgarner/atomic-core --state open` remains **read-only context** — upstream's tracker is the closest thing to a roadmap, but those numbers belong to another repository. Never `Closes` one; see Phase 4.
 
 **Check for open PRs from previous cycles first.** If any open PR exists, decide before doing anything else:
 - If the PR is still valid (anchor green, no conflicts), **first confirm a Phase 4 self-review was actually posted** (a carried-over PR from a prior cycle may never have completed it). If none is recorded, perform the Phase 4 self-review now (the anchor must be green first) before jumping to Phase 5. Otherwise jump to Phase 5 to re-poll for review.
@@ -134,7 +141,7 @@ When candidates have a dependency relationship, implement the foundation first.
 
 **Early-cycle bias.** For the first 3–5 cycles after this skill is generated, weight the tiebreaker more strongly toward documentation and build fixes — the loop has minimal prior context for harder work, and this repo's verification story is weak enough that a renderer change is expensive to prove. Once the loop has shipped several cycles successfully, the bias relaxes. This is a preference, not a rule; an explicit user instruction overrides it.
 
-Because there is no project issue tracker, record the work item in the PR body under `## Work in scope` instead of `Closes #N` (see Phase 1).
+Record the work item in the PR body under `## Work in scope`, and add `Closes #N` when the work resolves an open issue on this fork (see Phase 4 for which numbers may be closed).
 
 **Alternative cycle work modes.** Implementing candidates is the default unit of work, but a cycle may instead be devoted to one of the stages below. Both are **first-class outcomes** (not filler) and produce a normal PR through Phases 4–8. Prefer them when the candidate list is thin, blocked, or all owner-gated. **For this repo, Stage A is the high-value default** — the documentation surface (`README.md`, `FEATURE_SOURCE.md`, `docs/`) is large, hand-maintained, and nothing mechanically checks it.
 
@@ -250,7 +257,7 @@ If changes exceed **~400 net LOC** or the PR modifies more than **~10 files**, s
 
 ### Phase 4 — PR
 
-**Do not write `Closes #N`.** Issues are disabled on this repo; a `Closes` reference resolves against the fork's non-existent tracker and quietly does nothing. Reference upstream issues, when relevant, as a plain link (`context: philbgarner/atomic-core#12`) that makes clear it is not being closed.
+**`Closes #N` works now, but only for this fork's own numbers.** Issues are enabled on `dmccoystephenson/atomic-core`, so a bare `#N` in a PR body resolves against *this* tracker — write `Closes #N` when the PR genuinely resolves that issue, and let the merge close it. Two cautions: close an issue only when the whole issue is resolved (several seeded issues bundle related items, and a partial fix should say which part it covers rather than closing the lot); and **never `Closes` an upstream number** — reference upstream as a plain link (`context: philbgarner/atomic-core#12`), which makes clear it is not being closed and cannot be, since a fork PR's references resolve against the fork.
 
 ```bash
 git push -u origin feature/<short-description>
