@@ -239,7 +239,16 @@ git add <files>
 git status --short
 git diff --cached --name-only    # confirm this list is exactly the intended files
 ```
-If a build left `dist/` dirty and you want a clean tree, `git checkout -- dist/` — but only after the browser pass, since reverting `dist/` reverts what the examples load.
+**Leave the working tree clean before the cycle ends — this is mandatory, not hygiene.** `npm run build` rewrites tracked files under `dist/`, and a gardener-managed clone is refreshed with `git fetch` → `git checkout -B master origin/master` → `git clean`, with **no `git reset --hard` anywhere in that sequence**. `git checkout -B` refuses to run when a modified tracked file would be overwritten, so a `dist/` left dirty at the end of a cycle fails the *next* run's refresh before it dispatches anything — and every run after that, until a human clears the tree by hand. Nothing about it heals on its own.
+
+So after the browser pass, and before the cycle ends:
+
+```bash
+git checkout -- dist/        # only after the browser pass — the examples load exactly these files
+git status --porcelain       # must be empty; anything listed benches this repo next cycle
+```
+
+The ordering constraint is real: reverting `dist/` reverts what the examples load, so a browser pass run afterwards is checking the committed bundle rather than the change.
 
 **Scope ceiling.** Before pushing, check the cumulative net diff for this cycle:
 ```bash
@@ -517,7 +526,7 @@ Return to Phase 1.
 **`gh pr create` targets `philbgarner/atomic-core`:** this is a fork, and that is `gh`'s default base. Always pass `--repo dmccoystephenson/atomic-core --base master --head <branch>`. If a PR lands upstream by mistake, close it immediately with an explanation and reopen against the fork — an unsolicited PR on someone else's project is not this loop's call to make.
 **`gh pr create` fails with "you must first push the current branch to a remote" despite a successful `git push -u`:** the clone's fetch refspec is restricted to `master` only (confirm with `git config --get-all remote.origin.fetch`), so no remote-tracking ref exists for the feature branch and `gh`'s auto-detection fails. Pass `--head <branch>` explicitly rather than retrying the push.
 **The clone is shallow (`git rev-parse --is-shallow-repository` → `true`):** gardener clones this repo at depth 1. `git fetch --unshallow` before rebasing or reading history; a shallow tree makes `git rebase origin/master` and `git log` misleading, and hides the upstream conventions this skill was derived from.
-**`git status` shows `dist/` modified after a build:** expected — `npm run build` rewrites tracked output. Never stage it. `git checkout -- dist/` restores the committed bundle, but only do that after the browser pass, since the examples load exactly those files.
+**`git status` shows `dist/` modified after a build:** expected — `npm run build` rewrites tracked output. Never stage it, and never leave it that way at the end of a cycle: `git checkout -- dist/` restores the committed bundle, after the browser pass, since the examples load exactly those files. Leaving it dirty fails the next run's `git checkout -B master origin/master` refresh and benches the repo until a human intervenes (see Phase 3's staging-hygiene rule).
 **A change looks correct in the source but the demo behaves as before:** the page is loading the committed `dist/` bundle, not `src/`. Run `npm run build` and hard-reload. This is the single most common false negative in this repo.
 **`src/libold` appears as an empty directory or shows up in a diff:** it is a gitlink (mode `160000`) with no `.gitmodules` — an accidentally-committed nested repo. Do not stage it, do not `git submodule add` it, do not delete it as cleanup; removing it is owner-gated history work.
 **A doc claims React/R3F and the code has none:** known, deliberate-looking drift between `package.json` (description, `peerDependencies`, the Vite React plugin) and `README.md`'s "No React, no JSX". The peer-dependency set is a published contract — surface it to the owner; do not resolve it in passing.
